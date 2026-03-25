@@ -193,10 +193,14 @@ async def to_code(config):
     cg.add(var.set_apn(config.get(CONF_APN, "cmnbiot")))
     cg.add(var.set_keepalive(config.get(CONF_KEEPALIVE, 60)))
     cg.add(var.set_clean_session(config.get(CONF_CLEAN_SESSION, True)))
-    cg.add(var.set_command_timeout(config.get(CONF_TIMEOUT, cv.TimePeriod(seconds=5))))
+    cg.add(
+        var.set_command_timeout(
+            config.get(CONF_TIMEOUT, cv.TimePeriod(seconds=5)).total_milliseconds
+        )
+    )
     cg.add(
         var.set_reconnect_interval(
-            config.get(CONF_RECONNECT_INTERVAL, cv.TimePeriod(seconds=30))
+            config.get(CONF_RECONNECT_INTERVAL, cv.TimePeriod(seconds=30)).total_milliseconds
         )
     )
 
@@ -317,7 +321,7 @@ async def dx_ct511n_send_at_to_code(config, action_id, template_arg, args):
     command = await cg.templatable(config[CONF_COMMAND], args, cg.std_string)
     if command is not None:
         cg.add(var.set_command(command))
-    cg.add(var.set_timeout_ms(config.get(CONF_TIMEOUT, cv.TimePeriod())))
+    cg.add(var.set_timeout_ms(config.get(CONF_TIMEOUT, cv.TimePeriod()).total_milliseconds))
     return var
 
 
