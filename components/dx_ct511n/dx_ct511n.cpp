@@ -203,7 +203,12 @@ void DXCT511NComponent::start_setup_command_() {
       request.expects = {"OK", "+NETOPEN: SUCCESS", "ERROR: 902"};
       break;
     case SetupStep::STEP_MCONFIG:
-      request.command = "AT+MCONFIG=\"" + this->client_id_ + "\"";
+      if (!this->username_.empty() || !this->password_.empty()) {
+        request.command = "AT+MCONFIG=\"" + this->client_id_ + "\",\"" + this->username_ + "\",\"" +
+                          this->password_ + "\",0,0";
+      } else {
+        request.command = "AT+MCONFIG=\"" + this->client_id_ + "\"";
+      }
       request.expects = {"OK"};
       break;
     case SetupStep::STEP_MIPSTART:

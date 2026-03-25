@@ -21,6 +21,7 @@
 - aligned `AT+QICSGP` default quick-start form to `1,1`
 - aligned `AT+MIPSTART` default MQTT version to `4`
 - changed `AT+MCONFIG` default generation to simplified client-ID form
+- changed `AT+MCONFIG` generation to use username/password form when credentials are configured
 
 ### Notes
 

@@ -41,6 +41,12 @@ Expected success indication:
 AT+MCONFIG="4G TEST"
 ```
 
+Extended form currently used by the ESPHome component when MQTT credentials are configured:
+
+```text
+AT+MCONFIG="4G TEST","username","password",0,0
+```
+
 4. Configure MQTT broker address, port and version
 
 ```text
@@ -107,6 +113,7 @@ AT+MIPCLOSE
 - `AT+MSUB` uses topic plus QoS
 - `AT+MPUB` uses topic, QoS, retain, payload
 - `AT+MPUBEX` is the long payload variant with explicit payload length
+- the quick-start note shows the simplified `AT+MCONFIG` form, but field testing may require the extended credential form
 
 ## AT Command List Mentioned In User Notes
 

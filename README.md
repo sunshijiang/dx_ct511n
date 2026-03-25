@@ -61,34 +61,26 @@ dx_ct511n:
           format: "NMEA: %s"
           args: [sentence.c_str()]
 
-sensor:
-  - platform: dx_ct511n
-    gps:
-      name: CT511N GPS Power
-    signal_quality:
-      name: CT511N CSQ
-    rssi_dbm:
-      name: CT511N RSSI
-    bit_error_rate:
-      name: CT511N BER
-    last_response:
-      name: CT511N Last Response
-    last_topic:
-      name: CT511N Last Topic
-    last_payload:
-      name: CT511N Last Payload
-    gnss_sentence:
-      name: CT511N Last NMEA
-    mqtt_connected:
-      name: CT511N MQTT Connected
-    network_connected:
-      name: CT511N Network Connected
-
-button:
-  - platform: dx_ct511n
-    dx_ct511n_id: modem
-    reconnect:
-      name: CT511N Reconnect
+  gps:
+    name: CT511N GPS Power
+  signal_quality:
+    name: CT511N CSQ
+  rssi_dbm:
+    name: CT511N RSSI
+  bit_error_rate:
+    name: CT511N BER
+  last_response:
+    name: CT511N Last Response
+  last_topic:
+    name: CT511N Last Topic
+  last_payload:
+    name: CT511N Last Payload
+  gnss_sentence:
+    name: CT511N Last NMEA
+  mqtt_connected:
+    name: CT511N MQTT Connected
+  network_connected:
+    name: CT511N Network Connected
 
 interval:
   - interval: 60s
@@ -97,4 +89,10 @@ interval:
           id: modem
           topic: /topic/heartbeat
           payload: '{"state":"alive"}'
+      - dx_ct511n.reconnect:
+          id: modem
 ```
+
+`username` and `password` are optional. If either is provided, the component generates the extended
+`AT+MCONFIG="client_id","username","password",0,0` form. Otherwise it uses the simplified
+`AT+MCONFIG="client_id"` form from the quick-start notes.
