@@ -70,6 +70,8 @@ class DXCT511NComponent : public PollingComponent, public uart::UARTDevice {
   }
 
   void publish_message(const std::string &topic, const std::string &payload, uint8_t qos = 0, bool retain = false);
+  void publish_long_message(const std::string &topic, const std::string &payload, uint8_t qos = 0,
+                            bool retain = false);
   void send_raw_at(const std::string &command, uint32_t timeout_ms = 0);
   void request_reconnect();
   void request_gps_power(bool state);
@@ -94,6 +96,8 @@ class DXCT511NComponent : public PollingComponent, public uart::UARTDevice {
   enum class CommandKind {
     KIND_SETUP,
     KIND_PUBLISH,
+    KIND_PUBLISH_LONG_PROMPT,
+    KIND_PUBLISH_LONG_RESULT,
     KIND_CSQ,
     KIND_RAW_AT,
     KIND_GPS_POWER,
@@ -108,6 +112,7 @@ class DXCT511NComponent : public PollingComponent, public uart::UARTDevice {
     uint32_t timeout_ms{0};
     CommandKind kind{CommandKind::KIND_RAW_AT};
     bool desired_state{false};
+    std::string data_payload;
   };
 
   void process_line_(const std::string &line);
@@ -123,6 +128,7 @@ class DXCT511NComponent : public PollingComponent, public uart::UARTDevice {
   void handle_message_line_(const std::string &line);
   void handle_json_payload_(const std::string &payload);
   void handle_nmea_sentence_(const std::string &sentence);
+  std::string unescape_mqtt_payload_(const std::string &payload) const;
   void parse_csq_(const std::string &response);
   bool response_contains_expected_(const std::string &response) const;
   bool is_error_response_(const std::string &response) const;
@@ -207,6 +213,23 @@ template<typename... Ts> class DXCT511NPublishAction : public Action<Ts...> {
   void play(const Ts &...x) override {
     this->parent_->publish_message(this->topic_.value(x...), this->payload_.value(x...), this->qos_.value(x...),
                                    this->retain_.value(x...));
+  }
+
+ protected:
+  DXCT511NComponent *parent_;
+};
+
+template<typename... Ts> class DXCT511NPublishLongAction : public Action<Ts...> {
+ public:
+  explicit DXCT511NPublishLongAction(DXCT511NComponent *parent) : parent_(parent) {}
+  TEMPLATABLE_VALUE(std::string, topic)
+  TEMPLATABLE_VALUE(std::string, payload)
+  TEMPLATABLE_VALUE(uint8_t, qos)
+  TEMPLATABLE_VALUE(bool, retain)
+
+  void play(const Ts &...x) override {
+    this->parent_->publish_long_message(this->topic_.value(x...), this->payload_.value(x...), this->qos_.value(x...),
+                                        this->retain_.value(x...));
   }
 
  protected:

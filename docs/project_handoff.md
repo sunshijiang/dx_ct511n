@@ -121,23 +121,20 @@ Recommended next improvement:
 
 ### High Priority
 
-1. Normalize MQTT downlink payload before exposing it to YAML automations
-2. Add `AT+MPUBEX` long-payload publish support
-3. Improve README example so it matches the actual current component structure
+1. Improve README example so it matches the actual current component structure
 
 ### Medium Priority
 
-4. Add GNSS query support:
+2. Add GNSS query support:
    - `AT+MGPSC?`
    - `AT+GPSMODE`
    - `AT+GPSST`
-5. Confirm exact UART format for subscribed MQTT downlink messages
-6. Confirm exact success/error responses for `MUNSUB`, `MDISCONNECT`, and `MIPCLOSE`
+3. Confirm exact success/error responses for `MUNSUB`, `MDISCONNECT`, and `MIPCLOSE`
 
 ### Nice To Have
 
-7. Refactor into standard ESPHome child platforms (`sensor.py`, `text_sensor.py`, etc.)
-8. Add built-in JSON parsing helpers for LED/GPS remote control
+4. Refactor into standard ESPHome child platforms (`sensor.py`, `text_sensor.py`, etc.)
+5. Add built-in JSON parsing helpers for LED/GPS remote control
 
 ## Example User Scenario In Progress
 

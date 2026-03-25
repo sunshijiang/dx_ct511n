@@ -8,6 +8,7 @@
 - YAML-configurable MQTT broker, port, client ID, APN, keepalive, and topic subscription list
 - UART-based MQTT connection sequence using CT511N AT commands
 - MQTT publish action `dx_ct511n.publish`
+- long MQTT publish action `dx_ct511n.publish_long`
 - raw command action `dx_ct511n.send_at`
 - reconnect action `dx_ct511n.reconnect`
 - unsubscribe action `dx_ct511n.unsubscribe`
@@ -22,6 +23,7 @@
 - aligned `AT+MIPSTART` default MQTT version to `4`
 - changed `AT+MCONFIG` default generation to simplified client-ID form
 - changed `AT+MCONFIG` generation to use username/password form when credentials are configured
+- unescaped incoming subscribed MQTT payload before exposing it to automations and diagnostics
 
 ### Notes
 

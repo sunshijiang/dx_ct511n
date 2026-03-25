@@ -69,6 +69,9 @@ DXCT511NNMEASentenceTrigger = dx_ct511n_ns.class_(
 )
 
 DXCT511NPublishAction = dx_ct511n_ns.class_("DXCT511NPublishAction", automation.Action)
+DXCT511NPublishLongAction = dx_ct511n_ns.class_(
+    "DXCT511NPublishLongAction", automation.Action
+)
 DXCT511NSendATAction = dx_ct511n_ns.class_("DXCT511NSendATAction", automation.Action)
 DXCT511NReconnectAction = dx_ct511n_ns.class_(
     "DXCT511NReconnectAction", automation.Action
@@ -278,6 +281,35 @@ PUBLISH_ACTION_SCHEMA = cv.Schema(
     PUBLISH_ACTION_SCHEMA,
 )
 async def dx_ct511n_publish_to_code(config, action_id, template_arg, args):
+    parent = await cg.get_variable(config[CONF_ID])
+    var = cg.new_Pvariable(action_id, template_arg, parent)
+    topic = await cg.templatable(config[CONF_TOPIC], args, cg.std_string)
+    payload = await cg.templatable(config[CONF_PAYLOAD], args, cg.std_string)
+    if topic is not None:
+        cg.add(var.set_topic(topic))
+    if payload is not None:
+        cg.add(var.set_payload(payload))
+    if CONF_QOS in config:
+        qos = await cg.templatable(config[CONF_QOS], args, cg.uint8)
+        if qos is not None:
+            cg.add(var.set_qos(qos))
+    else:
+        cg.add(var.set_qos(0))
+    if CONF_RETAIN in config:
+        retain = await cg.templatable(config[CONF_RETAIN], args, bool)
+        if retain is not None:
+            cg.add(var.set_retain(retain))
+    else:
+        cg.add(var.set_retain(False))
+    return var
+
+
+@automation.register_action(
+    "dx_ct511n.publish_long",
+    DXCT511NPublishLongAction,
+    PUBLISH_ACTION_SCHEMA,
+)
+async def dx_ct511n_publish_long_to_code(config, action_id, template_arg, args):
     parent = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, parent)
     topic = await cg.templatable(config[CONF_TOPIC], args, cg.std_string)

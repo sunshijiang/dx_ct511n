@@ -8,6 +8,7 @@ Current implementation focus:
 - preserve UART pin and baud configuration through native ESPHome `uart:`
 - provide UART-based 4G + MQTT connection sequence
 - provide MQTT publish and subscribe support
+- provide long MQTT publish support through `AT+MPUBEX`
 - provide GNSS power switch using `AT+MGPSC`
 - provide diagnostics for signal quality, modem responses, and NMEA output
 - provide automations for MQTT messages, JSON payloads, NMEA sentences, and ready state
@@ -89,10 +90,25 @@ interval:
           id: modem
           topic: /topic/heartbeat
           payload: '{"state":"alive"}'
-      - dx_ct511n.reconnect:
+      - dx_ct511n.publish_long:
           id: modem
+          topic: /topic/long_payload
+          payload: '{"message":"this can use MPUBEX for longer payloads"}'
 ```
 
 `username` and `password` are optional. If either is provided, the component generates the extended
 `AT+MCONFIG="client_id","username","password",0,0` form. Otherwise it uses the simplified
 `AT+MCONFIG="client_id"` form from the quick-start notes.
+
+Incoming subscribed MQTT payloads are now unescaped before being exposed through `on_mqtt_message` and
+`last_payload`, so normal JSON matching in YAML is easier.
+
+## Full YAML Example
+
+See `docs/full_yaml_example.md` for a full example with:
+
+- local external component path
+- MQTT credentials
+- LED remote control via subscribed MQTT topic
+- DHT11 temperature/humidity reporting
+- LED status publishing

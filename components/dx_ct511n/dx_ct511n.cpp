@@ -50,6 +50,13 @@ void DXCT511NComponent::loop() {
       break;
 
     const char c = static_cast<char>(byte);
+
+    if (this->pending_active_ && this->pending_.kind == CommandKind::KIND_PUBLISH_LONG_PROMPT && c == '>') {
+      this->pending_response_.push_back(c);
+      this->finish_pending_(true);
+      continue;
+    }
+
     if (c != ASCII_CR) {
       this->process_json_stream_char_(c);
     }
@@ -315,6 +322,31 @@ void DXCT511NComponent::finish_pending_(bool success) {
     return;
   }
 
+  if (kind == CommandKind::KIND_PUBLISH_LONG_PROMPT) {
+    if (!success) {
+      ESP_LOGW(TAG, "Long publish prompt failed for command: %s", command.c_str());
+      this->set_mqtt_connected_(false);
+      this->step_ = SetupStep::STEP_MCONNECT;
+      return;
+    }
+
+    ESP_LOGD(TAG, "TX LONG PAYLOAD: %u bytes", static_cast<unsigned>(this->pending_.data_payload.size()));
+    this->write_array(reinterpret_cast<const uint8_t *>(this->pending_.data_payload.data()),
+                      this->pending_.data_payload.size());
+    this->pending_ = CommandRequest{"", {"OK", "SUCCESS"}, this->command_timeout_ms_, CommandKind::KIND_PUBLISH_LONG_RESULT};
+    this->pending_active_ = true;
+    this->pending_response_.clear();
+    this->pending_started_ = millis();
+    return;
+  }
+
+  if (kind == CommandKind::KIND_PUBLISH_LONG_RESULT && !success) {
+    ESP_LOGW(TAG, "Long publish failed");
+    this->set_mqtt_connected_(false);
+    this->step_ = SetupStep::STEP_MCONNECT;
+    return;
+  }
+
   if (kind == CommandKind::KIND_MDISCONNECT && success) {
     this->set_mqtt_connected_(false);
     return;
@@ -399,6 +431,7 @@ void DXCT511NComponent::handle_message_line_(const std::string &line) {
   }
 
   if (!topic.empty()) {
+    payload = this->unescape_mqtt_payload_(payload);
     if (this->last_topic_text_sensor_ != nullptr) {
       this->last_topic_text_sensor_->publish_state(topic);
     }
@@ -421,6 +454,41 @@ void DXCT511NComponent::handle_nmea_sentence_(const std::string &sentence) {
     this->gnss_sentence_text_sensor_->publish_state(sentence);
   }
   this->nmea_sentence_callback_.call(sentence);
+}
+
+std::string DXCT511NComponent::unescape_mqtt_payload_(const std::string &payload) const {
+  std::string out;
+  out.reserve(payload.size());
+
+  for (size_t i = 0; i < payload.size(); i++) {
+    char c = payload[i];
+    if (c == '\\' && i + 1 < payload.size()) {
+      char next = payload[i + 1];
+      if (next == '\\' || next == '"' || next == '/') {
+        out.push_back(next);
+        i++;
+        continue;
+      }
+      if (next == 'n') {
+        out.push_back('\n');
+        i++;
+        continue;
+      }
+      if (next == 'r') {
+        out.push_back('\r');
+        i++;
+        continue;
+      }
+      if (next == 't') {
+        out.push_back('\t');
+        i++;
+        continue;
+      }
+    }
+    out.push_back(c);
+  }
+
+  return out;
 }
 
 void DXCT511NComponent::parse_csq_(const std::string &response) {
@@ -487,6 +555,15 @@ void DXCT511NComponent::publish_message(const std::string &topic, const std::str
   this->queue_.push_back(CommandRequest{"AT+MPUB=\"" + topic + "\"," + to_string(qos) + "," +
                                             to_string(retain ? 1 : 0) + ",\"" + escaped + "\"",
                                         {"OK"}, this->command_timeout_ms_, CommandKind::KIND_PUBLISH});
+}
+
+void DXCT511NComponent::publish_long_message(const std::string &topic, const std::string &payload, uint8_t qos,
+                                             bool retain) {
+  auto request = CommandRequest{"AT+MPUBEX=\"" + topic + "\"," + to_string(qos) + "," +
+                                    to_string(retain ? 1 : 0) + "," + to_string(payload.size()),
+                                {">"}, 10000, CommandKind::KIND_PUBLISH_LONG_PROMPT};
+  request.data_payload = payload;
+  this->queue_.push_back(request);
 }
 
 void DXCT511NComponent::send_raw_at(const std::string &command, uint32_t timeout_ms) {
