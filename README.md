@@ -112,3 +112,18 @@ See `docs/full_yaml_example.md` for a full example with:
 - LED remote control via subscribed MQTT topic
 - DHT11 temperature/humidity reporting
 - LED status publishing
+
+## 4G-Only Usage
+
+If you do not want Wi-Fi at all and only want the ESP32 to communicate through the CT511N module,
+use the 4G-only example in `docs/4g_only_yaml_example.md`.
+
+In that mode:
+
+- remove `wifi:`
+- remove `api:`
+- remove Wi-Fi based `ota:`
+- rely on CT511N MQTT topics for remote control and telemetry
+
+If you want a git-based example that pins the collaboration branch directly, see
+`docs/esphome_codex_branch_example.yaml` and set `ref: codex`.

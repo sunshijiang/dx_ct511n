@@ -69,6 +69,7 @@ So all entities must currently be configured directly under the `dx_ct511n:` blo
 
 - preserve MQTT server configuration in YAML
 - preserve UART pin configuration in YAML
+- allow a 4G-only deployment mode without Wi-Fi configuration
 - allow remote MQTT control of LED outputs
 - support temperature and humidity reporting
 - push every meaningful repository change to GitHub so the user can pull and compile immediately
@@ -141,6 +142,7 @@ Recommended next improvement:
 The user wants a complete ESPHome YAML that includes:
 
 - CT511N modem config
+- optional 4G-only deployment without Wi-Fi
 - LED1/LED2/LED3 GPIO switches
 - DHT11 temperature and humidity sensor
 - publishing sensor data over CT511N MQTT
@@ -150,6 +152,16 @@ The user wants a complete ESPHome YAML that includes:
 ## Local Development Note
 
 The user has switched to a local external component path for stability, instead of using Git-based external component cache.
+
+## Codex Branch Note
+
+The repository also has a `codex` branch with a more advanced example flow, including:
+
+- an additional example YAML
+- runtime subscription management ideas
+- richer topic naming conventions
+
+When comparing branches, use the `codex` branch as a reference for future improvements, but keep the main branch examples aligned with the currently supported component API.
 
 ## Files Not Pushed As Source Material
 
