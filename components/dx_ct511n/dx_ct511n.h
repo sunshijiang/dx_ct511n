@@ -101,6 +101,9 @@ class DXCT511NComponent : public PollingComponent, public uart::UARTDevice {
     KIND_CSQ,
     KIND_RAW_AT,
     KIND_GPS_POWER,
+    KIND_MQTT_CONNECT_WAIT,
+    KIND_SUBSCRIBE_WAIT,
+    KIND_PUBLISH_WAIT,
     KIND_MUNSUB,
     KIND_MDISCONNECT,
     KIND_MIPCLOSE,
@@ -129,6 +132,8 @@ class DXCT511NComponent : public PollingComponent, public uart::UARTDevice {
   void handle_json_payload_(const std::string &payload);
   void handle_nmea_sentence_(const std::string &sentence);
   std::string unescape_mqtt_payload_(const std::string &payload) const;
+  bool line_matches_async_success_(const std::string &line, CommandKind kind) const;
+  bool line_matches_async_failure_(const std::string &line, CommandKind kind) const;
   void parse_csq_(const std::string &response);
   bool response_contains_expected_(const std::string &response) const;
   bool is_error_response_(const std::string &response) const;

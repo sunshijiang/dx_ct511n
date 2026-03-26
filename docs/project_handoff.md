@@ -103,16 +103,26 @@ The user observed `last_payload` values like:
 {\"led1\":\"on\",\"led2\":\"on\",\"led3\":\"on\"}
 ```
 
-This suggests the UART downlink payload is currently being exposed with escaped quotes.
+This suggests the UART downlink payload was being exposed with escaped quotes.
 
 Impact:
 
 - remote control messages do arrive
 - YAML matching logic may fail unless payload is normalized first
 
-Recommended next improvement:
+This was already improved by unescaping payload before exposing it to YAML callbacks.
 
-- unescape payload inside `components/dx_ct511n/dx_ct511n.cpp` before invoking `on_mqtt_message`
+### MQTT async result handling
+
+Field logs showed that CT511N can reply with immediate `OK` and only later emit the real result as:
+
+```text
++MCONNECT: FAILURE
++MSUB: FAILURE
++MPUB: FAILURE
+```
+
+The component was updated to wait for these async result lines before treating connect, subscribe, and publish as successful.
 
 ### ESPHome compile issues already fixed
 
@@ -131,11 +141,12 @@ Recommended next improvement:
    - `AT+GPSMODE`
    - `AT+GPSST`
 3. Confirm exact success/error responses for `MUNSUB`, `MDISCONNECT`, and `MIPCLOSE`
+4. Confirm whether `MPUBEX` also emits a final async success/failure line distinct from short publish
 
 ### Nice To Have
 
-4. Refactor into standard ESPHome child platforms (`sensor.py`, `text_sensor.py`, etc.)
-5. Add built-in JSON parsing helpers for LED/GPS remote control
+5. Refactor into standard ESPHome child platforms (`sensor.py`, `text_sensor.py`, etc.)
+6. Add built-in JSON parsing helpers for LED/GPS remote control
 
 ## Example User Scenario In Progress
 

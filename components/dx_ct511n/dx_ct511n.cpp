@@ -121,8 +121,24 @@ void DXCT511NComponent::process_line_(const std::string &line) {
     }
     this->pending_response_.append(line);
 
-    if (this->response_contains_expected_(this->pending_response_)) {
+    if (this->line_matches_async_success_(line, this->pending_.kind)) {
       this->finish_pending_(true);
+      return;
+    }
+    if (this->line_matches_async_failure_(line, this->pending_.kind)) {
+      this->finish_pending_(false);
+      return;
+    }
+
+    if (this->response_contains_expected_(this->pending_response_)) {
+      if (this->pending_.kind == CommandKind::KIND_MQTT_CONNECT_WAIT ||
+          this->pending_.kind == CommandKind::KIND_SUBSCRIBE_WAIT ||
+          this->pending_.kind == CommandKind::KIND_PUBLISH_WAIT) {
+        this->pending_response_.clear();
+        this->pending_started_ = millis();
+      } else {
+        this->finish_pending_(true);
+      }
       return;
     }
     if (this->is_error_response_(line) && !this->response_contains_expected_(line)) {
@@ -225,8 +241,9 @@ void DXCT511NComponent::start_setup_command_() {
       break;
     case SetupStep::STEP_MCONNECT:
       request.command = "AT+MCONNECT=1," + to_string(this->keepalive_);
-      request.timeout_ms = 8000;
-      request.expects = {"OK", "CONNECTED", "SUCCESS", "ALREADY"};
+      request.timeout_ms = 15000;
+      request.expects = {"OK"};
+      request.kind = CommandKind::KIND_MQTT_CONNECT_WAIT;
       break;
     case SetupStep::STEP_SUBSCRIBE:
       if (this->subscribe_index_ >= this->subscribe_topics_.size()) {
@@ -235,7 +252,8 @@ void DXCT511NComponent::start_setup_command_() {
         return;
       }
       request.command = "AT+MSUB=\"" + this->subscribe_topics_[this->subscribe_index_] + "\",0";
-      request.expects = {"OK", "SUCCESS", "ALREADY"};
+      request.expects = {"OK"};
+      request.kind = CommandKind::KIND_SUBSCRIBE_WAIT;
       break;
     case SetupStep::STEP_READY:
     case SetupStep::STEP_IDLE:
@@ -311,6 +329,44 @@ void DXCT511NComponent::finish_pending_(bool success) {
 
   if (kind == CommandKind::KIND_CSQ && success) {
     this->parse_csq_(response);
+    return;
+  }
+
+  if (kind == CommandKind::KIND_MQTT_CONNECT_WAIT) {
+    if (!success) {
+      ESP_LOGW(TAG, "MQTT connect failed for command: %s", command.c_str());
+      this->set_mqtt_connected_(false);
+      this->schedule_reconnect_();
+      return;
+    }
+
+    this->subscribe_index_ = 0;
+    this->step_ = SetupStep::STEP_SUBSCRIBE;
+    return;
+  }
+
+  if (kind == CommandKind::KIND_SUBSCRIBE_WAIT) {
+    if (!success) {
+      ESP_LOGW(TAG, "Subscribe failed for command: %s", command.c_str());
+      this->set_mqtt_connected_(false);
+      this->schedule_reconnect_();
+      return;
+    }
+
+    this->subscribe_index_++;
+    if (this->subscribe_index_ >= this->subscribe_topics_.size()) {
+      this->step_ = SetupStep::STEP_READY;
+      this->set_mqtt_connected_(true);
+    }
+    return;
+  }
+
+  if (kind == CommandKind::KIND_PUBLISH_WAIT) {
+    if (!success) {
+      ESP_LOGW(TAG, "Publish async failure for command: %s", command.c_str());
+      this->set_mqtt_connected_(false);
+      this->step_ = SetupStep::STEP_MCONNECT;
+    }
     return;
   }
 
@@ -491,6 +547,34 @@ std::string DXCT511NComponent::unescape_mqtt_payload_(const std::string &payload
   return out;
 }
 
+bool DXCT511NComponent::line_matches_async_success_(const std::string &line, CommandKind kind) const {
+  switch (kind) {
+    case CommandKind::KIND_MQTT_CONNECT_WAIT:
+      return line.find("+MCONNECT: SUCCESS") != std::string::npos || line.find("+MCONNECT:SUCCESS") != std::string::npos ||
+             line.find("+MCONNECT: ALREADY") != std::string::npos || line.find("+MCONNECT:ALREADY") != std::string::npos;
+    case CommandKind::KIND_SUBSCRIBE_WAIT:
+      return line.find("+MSUB: SUCCESS") != std::string::npos || line.find("+MSUB:SUCCESS") != std::string::npos ||
+             line.find("+MSUB: ALREADY") != std::string::npos || line.find("+MSUB:ALREADY") != std::string::npos;
+    case CommandKind::KIND_PUBLISH_WAIT:
+      return line.find("+MPUB: SUCCESS") != std::string::npos || line.find("+MPUB:SUCCESS") != std::string::npos;
+    default:
+      return false;
+  }
+}
+
+bool DXCT511NComponent::line_matches_async_failure_(const std::string &line, CommandKind kind) const {
+  switch (kind) {
+    case CommandKind::KIND_MQTT_CONNECT_WAIT:
+      return line.find("+MCONNECT: FAILURE") != std::string::npos || line.find("+MCONNECT:FAILURE") != std::string::npos;
+    case CommandKind::KIND_SUBSCRIBE_WAIT:
+      return line.find("+MSUB: FAILURE") != std::string::npos || line.find("+MSUB:FAILURE") != std::string::npos;
+    case CommandKind::KIND_PUBLISH_WAIT:
+      return line.find("+MPUB: FAILURE") != std::string::npos || line.find("+MPUB:FAILURE") != std::string::npos;
+    default:
+      return false;
+  }
+}
+
 void DXCT511NComponent::parse_csq_(const std::string &response) {
   const auto pos = response.find("+CSQ:");
   if (pos == std::string::npos)
@@ -554,7 +638,7 @@ void DXCT511NComponent::publish_message(const std::string &topic, const std::str
   const auto escaped = this->escape_at_string_(payload);
   this->queue_.push_back(CommandRequest{"AT+MPUB=\"" + topic + "\"," + to_string(qos) + "," +
                                             to_string(retain ? 1 : 0) + ",\"" + escaped + "\"",
-                                        {"OK"}, this->command_timeout_ms_, CommandKind::KIND_PUBLISH});
+                                        {"OK"}, 15000, CommandKind::KIND_PUBLISH_WAIT});
 }
 
 void DXCT511NComponent::publish_long_message(const std::string &topic, const std::string &payload, uint8_t qos,
