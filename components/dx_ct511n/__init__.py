@@ -35,6 +35,7 @@ CONF_LAST_PAYLOAD = "last_payload"
 CONF_LAST_RESPONSE = "last_response"
 CONF_LAST_TOPIC = "last_topic"
 CONF_MQTT_CONNECTED = "mqtt_connected"
+CONF_MQTT_VERSION = "mqtt_version"
 CONF_NETWORK_CONNECTED = "network_connected"
 CONF_ON_JSON_MESSAGE = "on_json_message"
 CONF_ON_MQTT_MESSAGE = "on_mqtt_message"
@@ -96,6 +97,7 @@ CONFIG_SCHEMA = (
             cv.Optional(CONF_PASSWORD): cv.string,
             cv.Optional(CONF_APN): cv.string_strict,
             cv.Optional(CONF_KEEPALIVE): cv.int_range(min=10, max=3600),
+            cv.Optional(CONF_MQTT_VERSION, default=4): cv.int_range(min=3, max=4),
             cv.Optional(CONF_CLEAN_SESSION): cv.boolean,
             cv.Optional(CONF_RECONNECT_INTERVAL): cv.positive_time_period_milliseconds,
             cv.Optional(CONF_TIMEOUT): cv.positive_time_period_milliseconds,
@@ -195,6 +197,7 @@ async def to_code(config):
     cg.add(var.set_password(config.get(CONF_PASSWORD, "")))
     cg.add(var.set_apn(config.get(CONF_APN, "cmnbiot")))
     cg.add(var.set_keepalive(config.get(CONF_KEEPALIVE, 60)))
+    cg.add(var.set_mqtt_version(config[CONF_MQTT_VERSION]))
     cg.add(var.set_clean_session(config.get(CONF_CLEAN_SESSION, True)))
     cg.add(
         var.set_command_timeout(

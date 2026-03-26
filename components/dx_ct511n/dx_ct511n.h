@@ -40,6 +40,7 @@ class DXCT511NComponent : public PollingComponent, public uart::UARTDevice {
   void set_password(const std::string &password) { this->password_ = password; }
   void set_apn(const std::string &apn) { this->apn_ = apn; }
   void set_keepalive(uint16_t keepalive) { this->keepalive_ = keepalive; }
+  void set_mqtt_version(uint8_t mqtt_version) { this->mqtt_version_ = mqtt_version; }
   void set_clean_session(bool clean_session) { this->clean_session_ = clean_session; }
   void set_command_timeout(uint32_t timeout_ms) { this->command_timeout_ms_ = timeout_ms; }
   void set_reconnect_interval(uint32_t interval_ms) { this->reconnect_interval_ms_ = interval_ms; }
@@ -146,6 +147,7 @@ class DXCT511NComponent : public PollingComponent, public uart::UARTDevice {
   std::string password_;
   std::string apn_{"cmnbiot"};
   uint16_t keepalive_{60};
+  uint8_t mqtt_version_{4};
   bool clean_session_{true};
   uint32_t command_timeout_ms_{5000};
   uint32_t reconnect_interval_ms_{30000};

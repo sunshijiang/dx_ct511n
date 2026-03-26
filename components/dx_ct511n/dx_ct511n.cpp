@@ -235,7 +235,8 @@ void DXCT511NComponent::start_setup_command_() {
       request.expects = {"OK"};
       break;
     case SetupStep::STEP_MIPSTART:
-      request.command = "AT+MIPSTART=\"" + this->broker_ + "\"," + to_string(this->port_) + ",4";
+      request.command = "AT+MIPSTART=\"" + this->broker_ + "\"," + to_string(this->port_) + "," +
+                        to_string(this->mqtt_version_);
       request.timeout_ms = 10000;
       request.expects = {"OK", "ALREADY", "CONNECT"};
       break;

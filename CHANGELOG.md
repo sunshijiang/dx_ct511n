@@ -25,6 +25,7 @@
 - changed `AT+MCONFIG` generation to use username/password form when credentials are configured
 - unescaped incoming subscribed MQTT payload before exposing it to automations and diagnostics
 - changed MQTT connect/subscribe/publish handling to wait for async `SUCCESS` or `FAILURE` result lines
+- added configurable `mqtt_version` for `AT+MIPSTART`
 
 ### Notes
 

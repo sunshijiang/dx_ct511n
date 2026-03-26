@@ -95,6 +95,17 @@ AT+MCONFIG="client_id","username","password",0,0
 
 This was added because the user requested MQTT username/password support.
 
+### MQTT version selection
+
+The component now exposes `mqtt_version` in YAML and passes it to:
+
+```text
+AT+MIPSTART="broker",port,mqtt_version
+```
+
+Default is `4`, but `3` should be tested when `+MCONNECT: FAILURE` persists even though APN, NETOPEN,
+and MIPSTART succeed.
+
 ### MQTT downlink payload format
 
 The user observed `last_payload` values like:

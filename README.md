@@ -100,6 +100,14 @@ interval:
 `AT+MCONFIG="client_id","username","password",0,0` form. Otherwise it uses the simplified
 `AT+MCONFIG="client_id"` form from the quick-start notes.
 
+`mqtt_version` defaults to `4`. If your broker only works with the module using the older dialect,
+set:
+
+```yaml
+dx_ct511n:
+  mqtt_version: 3
+```
+
 Incoming subscribed MQTT payloads are now unescaped before being exposed through `on_mqtt_message` and
 `last_payload`, so normal JSON matching in YAML is easier.
 
