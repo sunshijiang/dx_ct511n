@@ -17,9 +17,9 @@ substitutions:
 
   mqtt_broker: "broker.emqx.io"
   mqtt_port: "1883"
-  mqtt_client_id: "4G TEST"
-  mqtt_username: "your_user"
-  mqtt_password: "your_pass"
+  mqtt_client_id: "4g_car"
+  mqtt_username: "4g_car"
+  mqtt_password: "191910"
   mqtt_apn: "cmnbiot"
 
   topic_led_cmd: "/topic/led"
@@ -59,6 +59,7 @@ dx_ct511n:
   client_id: ${mqtt_client_id}
   username: ${mqtt_username}
   password: ${mqtt_password}
+  mqtt_version: 3
   keepalive: 60
   subscribe_topics:
     - ${topic_led_cmd}
@@ -77,8 +78,10 @@ dx_ct511n:
   last_payload:
     name: CT511N Last Payload
   mqtt_connected:
+    id: modem_mqtt_connected
     name: CT511N MQTT Connected
   network_connected:
+    id: modem_network_connected
     name: CT511N Network Connected
   gps:
     id: gps_power
@@ -86,8 +89,7 @@ dx_ct511n:
 
   on_ready:
     then:
-      - script.execute: publish_led_state
-      - script.execute: publish_sensor_state
+      - logger.log: "CT511N ready"
 
   on_mqtt_message:
     then:
@@ -165,25 +167,31 @@ script:
   - id: publish_led_state
     mode: restart
     then:
-      - dx_ct511n.publish:
-          id: modem
-          topic: ${topic_led_status}
-          payload: !lambda |-
-            char out[128];
-            snprintf(out, sizeof(out),
-                     "{\"led1\":\"%s\",\"led2\":\"%s\",\"led3\":\"%s\"}",
-                     id(led1_sw).state ? "on" : "off",
-                     id(led2_sw).state ? "on" : "off",
-                     id(led3_sw).state ? "on" : "off");
-            return std::string(out);
+      - if:
+          condition:
+            binary_sensor.is_on: modem_mqtt_connected
+          then:
+            - dx_ct511n.publish:
+                id: modem
+                topic: ${topic_led_status}
+                payload: !lambda |-
+                  char out[128];
+                  snprintf(out, sizeof(out),
+                           "{\"led1\":\"%s\",\"led2\":\"%s\",\"led3\":\"%s\"}",
+                           id(led1_sw).state ? "on" : "off",
+                           id(led2_sw).state ? "on" : "off",
+                           id(led3_sw).state ? "on" : "off");
+                  return std::string(out);
 
   - id: publish_sensor_state
     mode: restart
     then:
       - if:
           condition:
-            lambda: |-
-              return !isnan(id(dht_temperature).state) && !isnan(id(dht_humidity).state);
+            and:
+              - binary_sensor.is_on: modem_mqtt_connected
+              - lambda: |-
+                  return !isnan(id(dht_temperature).state) && !isnan(id(dht_humidity).state);
           then:
             - dx_ct511n.publish:
                 id: modem
