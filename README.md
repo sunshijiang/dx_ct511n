@@ -9,6 +9,7 @@ Current implementation focus:
 - provide UART-based 4G + MQTT connection sequence
 - provide MQTT publish and subscribe support
 - provide long MQTT publish support through `AT+MPUBEX`
+- provide runtime MQTT subscribe/unsubscribe actions with reconnect-safe topic tracking
 - provide GNSS power switch using `AT+MGPSC`
 - provide diagnostics for signal quality, modem responses, and NMEA output
 - provide automations for MQTT messages, JSON payloads, NMEA sentences, and ready state
@@ -43,14 +44,15 @@ dx_ct511n:
   id: modem
   uart_id: uart_ct511n
   apn: cmnbiot
-  broker: 157.3233.fun
+  broker: broker.emqx.io
   port: 1883
   client_id: 4g_car
   username: 4g_car
   password: "191910"
   subscribe_topics:
     - /topic/led
-    - /topic/gps
+    - topic: /topic/admin
+      qos: 1
   on_json_message:
     then:
       - logger.log:
@@ -100,8 +102,25 @@ interval:
 `AT+MCONFIG="client_id","username","password",0,0` form. Otherwise it uses the simplified
 `AT+MCONFIG="client_id"` form from the quick-start notes.
 
+`subscribe_topics` accepts either plain topic strings or objects such as:
+
+```yaml
+subscribe_topics:
+  - /topic/led
+  - topic: /topic/admin
+    qos: 1
+```
+
 Incoming subscribed MQTT payloads are now unescaped before being exposed through `on_mqtt_message` and
 `last_payload`, so normal JSON matching in YAML is easier.
+
+Runtime topic changes are also supported through:
+
+- `dx_ct511n.subscribe`
+- `dx_ct511n.unsubscribe`
+
+The component now keeps the runtime subscription set in memory so reconnects re-subscribe only the topics
+that are still desired.
 
 ## Full YAML Example
 
@@ -112,3 +131,6 @@ See `docs/full_yaml_example.md` for a full example with:
 - LED remote control via subscribed MQTT topic
 - DHT11 temperature/humidity reporting
 - LED status publishing
+
+If you want a git-based example that pins the collaboration branch directly, see
+`docs/esphome_codex_branch_example.yaml` and set `ref: codex`.

@@ -24,6 +24,8 @@ The design target is based on:
 - `components/dx_ct511n/dx_ct511n.cpp`
 - `docs/ct511n_uart_mqtt_reference.md`
 - `docs/project_handoff.md`
+- `docs/full_yaml_example.md`
+- `docs/esphome_codex_branch_example.yaml`
 - `README.md`
 - `CHANGELOG.md`
 
@@ -41,6 +43,8 @@ The design target is based on:
   - `AT+MCONNECT`
   - `AT+MSUB`
 - MQTT publish action: `dx_ct511n.publish`
+- MQTT long-publish action: `dx_ct511n.publish_long`
+- MQTT subscribe action: `dx_ct511n.subscribe`
 - Raw AT action: `dx_ct511n.send_at`
 - Reconnect action: `dx_ct511n.reconnect`
 - Unsubscribe action: `dx_ct511n.unsubscribe`
@@ -50,7 +54,8 @@ The design target is based on:
 - GNSS power control using `AT+MGPSC`
 - MQTT topic callback trigger `on_mqtt_message`
 - JSON and NMEA callback triggers
-- YAML-configurable broker, port, APN, keepalive, subscribe topics, client ID, username, password
+- subscription persistence across reconnect, including runtime subscribe/unsubscribe changes
+- YAML-configurable broker, port, APN, keepalive, subscribe topics with optional QoS, client ID, username, password
 
 ### Current YAML Style
 
@@ -99,7 +104,7 @@ This was added because the user requested MQTT username/password support.
 The user observed `last_payload` values like:
 
 ```text
-{\"led1\":\"on\",\"led2\":\"on\",\"led3\":\"on\"}
+{"led1":"on","led2":"on","led3":"on"}
 ```
 
 This suggests the UART downlink payload is currently being exposed with escaped quotes.
@@ -109,9 +114,16 @@ Impact:
 - remote control messages do arrive
 - YAML matching logic may fail unless payload is normalized first
 
-Recommended next improvement:
+Current implementation already unescapes those payloads before they reach `on_mqtt_message` and `last_payload`.
 
-- unescape payload inside `components/dx_ct511n/dx_ct511n.cpp` before invoking `on_mqtt_message`
+### Runtime subscriptions
+
+Runtime subscribe/unsubscribe actions now update the in-memory desired subscription set.
+
+Impact:
+
+- reconnects will restore dynamically-added topics
+- topics removed by `dx_ct511n.unsubscribe` will no longer come back after reconnect
 
 ### ESPHome compile issues already fixed
 
@@ -121,7 +133,7 @@ Recommended next improvement:
 
 ### High Priority
 
-1. Improve README example so it matches the actual current component structure
+1. Validate the current AT response matching against a real CT511N module and capture logs for successful and failing `MSUB`, `MUNSUB`, `MDISCONNECT`, and `MIPCLOSE`
 
 ### Medium Priority
 
@@ -129,7 +141,7 @@ Recommended next improvement:
    - `AT+MGPSC?`
    - `AT+GPSMODE`
    - `AT+GPSST`
-3. Confirm exact success/error responses for `MUNSUB`, `MDISCONNECT`, and `MIPCLOSE`
+3. Decide whether `clean_session` should affect generated AT commands, since it is stored in config but not yet used
 
 ### Nice To Have
 
@@ -150,6 +162,9 @@ The user wants a complete ESPHome YAML that includes:
 ## Local Development Note
 
 The user has switched to a local external component path for stability, instead of using Git-based external component cache.
+
+The `codex` branch is intended to hold AI-assisted iterative work, including `CHANGELOG`, handoff notes, and
+example YAML updates, so editors/tools can safely share one integration branch.
 
 ## Files Not Pushed As Source Material
 

@@ -72,6 +72,7 @@ DXCT511NPublishAction = dx_ct511n_ns.class_("DXCT511NPublishAction", automation.
 DXCT511NPublishLongAction = dx_ct511n_ns.class_(
     "DXCT511NPublishLongAction", automation.Action
 )
+DXCT511NSubscribeAction = dx_ct511n_ns.class_("DXCT511NSubscribeAction", automation.Action)
 DXCT511NSendATAction = dx_ct511n_ns.class_("DXCT511NSendATAction", automation.Action)
 DXCT511NReconnectAction = dx_ct511n_ns.class_(
     "DXCT511NReconnectAction", automation.Action
@@ -84,6 +85,15 @@ DXCT511NDisconnectAction = dx_ct511n_ns.class_(
 )
 DXCT511NCloseAction = dx_ct511n_ns.class_("DXCT511NCloseAction", automation.Action)
 
+SUBSCRIPTION_ENTRY_SCHEMA = cv.Any(
+    cv.string_strict,
+    cv.Schema(
+        {
+            cv.Required(CONF_TOPIC): cv.string_strict,
+            cv.Optional(CONF_QOS, default=0): cv.int_range(min=0, max=2),
+        }
+    ),
+)
 
 CONFIG_SCHEMA = (
     cv.Schema(
@@ -99,7 +109,7 @@ CONFIG_SCHEMA = (
             cv.Optional(CONF_CLEAN_SESSION): cv.boolean,
             cv.Optional(CONF_RECONNECT_INTERVAL): cv.positive_time_period_milliseconds,
             cv.Optional(CONF_TIMEOUT): cv.positive_time_period_milliseconds,
-            cv.Optional(CONF_SUBSCRIBE_TOPICS): cv.ensure_list(cv.string_strict),
+            cv.Optional(CONF_SUBSCRIBE_TOPICS): cv.ensure_list(SUBSCRIPTION_ENTRY_SCHEMA),
             cv.Optional(CONF_SIGNAL_QUALITY): sensor.sensor_schema(
                 accuracy_decimals=0,
                 state_class=STATE_CLASS_MEASUREMENT,
@@ -207,8 +217,11 @@ async def to_code(config):
         )
     )
 
-    for topic in config.get(CONF_SUBSCRIBE_TOPICS, []):
-        cg.add(var.add_subscribe_topic(topic))
+    for subscription in config.get(CONF_SUBSCRIBE_TOPICS, []):
+        if isinstance(subscription, str):
+            cg.add(var.add_subscribe_topic(subscription, 0))
+        else:
+            cg.add(var.add_subscribe_topic(subscription[CONF_TOPIC], subscription[CONF_QOS]))
 
     if conf := config.get(CONF_SIGNAL_QUALITY):
         sens = await sensor.new_sensor(conf)
@@ -330,6 +343,35 @@ async def dx_ct511n_publish_long_to_code(config, action_id, template_arg, args):
             cg.add(var.set_retain(retain))
     else:
         cg.add(var.set_retain(False))
+    return var
+
+
+SUBSCRIBE_ACTION_SCHEMA = cv.Schema(
+    {
+        cv.GenerateID(): cv.use_id(DXCT511NComponent),
+        cv.Required(CONF_TOPIC): cv.templatable(cv.string_strict),
+        cv.Optional(CONF_QOS): cv.templatable(cv.int_range(min=0, max=2)),
+    }
+)
+
+
+@automation.register_action(
+    "dx_ct511n.subscribe",
+    DXCT511NSubscribeAction,
+    SUBSCRIBE_ACTION_SCHEMA,
+)
+async def dx_ct511n_subscribe_to_code(config, action_id, template_arg, args):
+    parent = await cg.get_variable(config[CONF_ID])
+    var = cg.new_Pvariable(action_id, template_arg, parent)
+    topic = await cg.templatable(config[CONF_TOPIC], args, cg.std_string)
+    if topic is not None:
+        cg.add(var.set_topic(topic))
+    if CONF_QOS in config:
+        qos = await cg.templatable(config[CONF_QOS], args, cg.uint8)
+        if qos is not None:
+            cg.add(var.set_qos(qos))
+    else:
+        cg.add(var.set_qos(0))
     return var
 
 

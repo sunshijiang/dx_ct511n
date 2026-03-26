@@ -43,7 +43,7 @@ class DXCT511NComponent : public PollingComponent, public uart::UARTDevice {
   void set_clean_session(bool clean_session) { this->clean_session_ = clean_session; }
   void set_command_timeout(uint32_t timeout_ms) { this->command_timeout_ms_ = timeout_ms; }
   void set_reconnect_interval(uint32_t interval_ms) { this->reconnect_interval_ms_ = interval_ms; }
-  void add_subscribe_topic(const std::string &topic) { this->subscribe_topics_.push_back(topic); }
+  void add_subscribe_topic(const std::string &topic, uint8_t qos = 0);
 
   SUB_SENSOR(signal_quality)
   SUB_SENSOR(rssi_dbm)
@@ -72,6 +72,7 @@ class DXCT511NComponent : public PollingComponent, public uart::UARTDevice {
   void publish_message(const std::string &topic, const std::string &payload, uint8_t qos = 0, bool retain = false);
   void publish_long_message(const std::string &topic, const std::string &payload, uint8_t qos = 0,
                             bool retain = false);
+  void request_subscribe(const std::string &topic, uint8_t qos = 0);
   void send_raw_at(const std::string &command, uint32_t timeout_ms = 0);
   void request_reconnect();
   void request_gps_power(bool state);
@@ -101,9 +102,15 @@ class DXCT511NComponent : public PollingComponent, public uart::UARTDevice {
     KIND_CSQ,
     KIND_RAW_AT,
     KIND_GPS_POWER,
+    KIND_MSUB,
     KIND_MUNSUB,
     KIND_MDISCONNECT,
     KIND_MIPCLOSE,
+  };
+
+  struct Subscription {
+    std::string topic;
+    uint8_t qos{0};
   };
 
   struct CommandRequest {
@@ -121,6 +128,10 @@ class DXCT511NComponent : public PollingComponent, public uart::UARTDevice {
   void start_setup_command_();
   void send_command_(const CommandRequest &request);
   void finish_pending_(bool success);
+  CommandRequest make_subscribe_request_(const Subscription &subscription, CommandKind kind) const;
+  void upsert_subscription_(const std::string &topic, uint8_t qos);
+  void remove_subscription_(const std::string &topic);
+  int find_subscription_index_(const std::string &topic) const;
   void schedule_reconnect_();
   void set_network_connected_(bool connected);
   void set_mqtt_connected_(bool connected);
@@ -144,7 +155,7 @@ class DXCT511NComponent : public PollingComponent, public uart::UARTDevice {
   bool clean_session_{true};
   uint32_t command_timeout_ms_{5000};
   uint32_t reconnect_interval_ms_{30000};
-  std::vector<std::string> subscribe_topics_;
+  std::vector<Subscription> subscribe_topics_;
 
   SetupStep step_{SetupStep::STEP_IDLE};
   size_t subscribe_index_{0};
@@ -230,6 +241,20 @@ template<typename... Ts> class DXCT511NPublishLongAction : public Action<Ts...> 
   void play(const Ts &...x) override {
     this->parent_->publish_long_message(this->topic_.value(x...), this->payload_.value(x...), this->qos_.value(x...),
                                         this->retain_.value(x...));
+  }
+
+ protected:
+  DXCT511NComponent *parent_;
+};
+
+template<typename... Ts> class DXCT511NSubscribeAction : public Action<Ts...> {
+ public:
+  explicit DXCT511NSubscribeAction(DXCT511NComponent *parent) : parent_(parent) {}
+  TEMPLATABLE_VALUE(std::string, topic)
+  TEMPLATABLE_VALUE(uint8_t, qos)
+
+  void play(const Ts &...x) override {
+    this->parent_->request_subscribe(this->topic_.value(x...), this->qos_.value(x...));
   }
 
  protected:

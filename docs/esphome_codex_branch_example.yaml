@@ -1,25 +1,20 @@
-# Full YAML Example
-
-This example matches the current `dx_ct511n` component structure and uses a local external component path.
-
-```yaml
 substitutions:
-  device_name: ct511n
-  wifi_ssid: "SUN"
-  wifi_password: "123456890"
+  device_name: ct511n-codex
+  wifi_ssid: "YOUR_WIFI"
+  wifi_password: "YOUR_WIFI_PASSWORD"
 
   mqtt_broker: "broker.emqx.io"
   mqtt_port: "1883"
-  mqtt_client_id: "4G TEST"
-  mqtt_username: "your_user"
-  mqtt_password: "your_pass"
+  mqtt_client_id: "ct511n_codex"
+  mqtt_username: ""
+  mqtt_password: ""
   mqtt_apn: "cmnbiot"
 
-  topic_led_cmd: "/topic/led"
-  topic_led_status: "/topic/led/status"
-  topic_sensor: "/topic/sensor"
-  topic_gps_cmd: "/topic/gps"
-  topic_admin_cmd: "/topic/admin"
+  topic_led_cmd: "/ct511n/led/cmd"
+  topic_led_status: "/ct511n/led/status"
+  topic_sensor: "/ct511n/sensor/state"
+  topic_gps_cmd: "/ct511n/gps/cmd"
+  topic_admin_cmd: "/ct511n/admin/cmd"
 
 esphome:
   name: ${device_name}
@@ -44,15 +39,16 @@ wifi:
   ssid: ${wifi_ssid}
   password: ${wifi_password}
   ap:
-    ssid: "Ct511N Fallback Hotspot"
-    password: "wU3wbU53fFVD"
+    ssid: "CT511N Fallback Hotspot"
+    password: "replace_me"
 
 captive_portal:
 
 external_components:
   - source:
-      type: local
-      path: D:/esphome/esphome/components/dx_ct511n/components
+      type: git
+      url: https://github.com/sunshijiang/dx_ct511n
+      ref: codex
     components: [dx_ct511n]
 
 uart:
@@ -72,10 +68,9 @@ dx_ct511n:
   password: ${mqtt_password}
   keepalive: 60
   subscribe_topics:
-    - ${topic_led_cmd}
-    - ${topic_gps_cmd}
-    - topic: ${topic_admin_cmd}
+    - topic: ${topic_led_cmd}
       qos: 1
+    - ${topic_gps_cmd}
 
   signal_quality:
     name: CT511N CSQ
@@ -89,6 +84,8 @@ dx_ct511n:
     name: CT511N Last Topic
   last_payload:
     name: CT511N Last Payload
+  gnss_sentence:
+    name: CT511N Last NMEA
   mqtt_connected:
     name: CT511N MQTT Connected
   network_connected:
@@ -132,9 +129,13 @@ dx_ct511n:
             }
           }
 
-          if (topic == "${topic_admin_cmd}" &&
-              payload.find("\"resubscribe\":true") != std::string::npos) {
-            id(ensure_runtime_subscriptions).execute();
+          if (topic == "${topic_admin_cmd}") {
+            if (payload.find("\"resubscribe\":true") != std::string::npos) {
+              id(ensure_runtime_subscriptions).execute();
+            }
+            if (payload.find("\"publish_now\":true") != std::string::npos) {
+              id(publish_sensor_state).execute();
+            }
           }
 
 switch:
@@ -195,6 +196,7 @@ script:
       - dx_ct511n.publish:
           id: modem
           topic: ${topic_led_status}
+          qos: 1
           payload: !lambda |-
             char out[128];
             snprintf(out, sizeof(out),
@@ -227,4 +229,3 @@ interval:
   - interval: 30s
     then:
       - script.execute: publish_sensor_state
-```

@@ -16,6 +16,10 @@ static const char ASCII_LF = 0x0A;
 
 void DXCT511NGPSSwitch::write_state(bool state) { this->parent_->request_gps_power(state); }
 
+void DXCT511NComponent::add_subscribe_topic(const std::string &topic, uint8_t qos) {
+  this->upsert_subscription_(topic, qos);
+}
+
 void DXCT511NComponent::setup() {
   this->step_ = SetupStep::STEP_AT;
   this->subscribe_index_ = 0;
@@ -234,8 +238,7 @@ void DXCT511NComponent::start_setup_command_() {
         this->set_mqtt_connected_(true);
         return;
       }
-      request.command = "AT+MSUB=\"" + this->subscribe_topics_[this->subscribe_index_] + "\",0";
-      request.expects = {"OK", "SUCCESS", "ALREADY"};
+      request = this->make_subscribe_request_(this->subscribe_topics_[this->subscribe_index_], CommandKind::KIND_SETUP);
       break;
     case SetupStep::STEP_READY:
     case SetupStep::STEP_IDLE:
@@ -322,6 +325,15 @@ void DXCT511NComponent::finish_pending_(bool success) {
     return;
   }
 
+  if (kind == CommandKind::KIND_MSUB) {
+    if (!success) {
+      ESP_LOGW(TAG, "Subscribe failed for command: %s", command.c_str());
+      this->set_mqtt_connected_(false);
+      this->step_ = SetupStep::STEP_MCONNECT;
+    }
+    return;
+  }
+
   if (kind == CommandKind::KIND_PUBLISH_LONG_PROMPT) {
     if (!success) {
       ESP_LOGW(TAG, "Long publish prompt failed for command: %s", command.c_str());
@@ -333,7 +345,8 @@ void DXCT511NComponent::finish_pending_(bool success) {
     ESP_LOGD(TAG, "TX LONG PAYLOAD: %u bytes", static_cast<unsigned>(this->pending_.data_payload.size()));
     this->write_array(reinterpret_cast<const uint8_t *>(this->pending_.data_payload.data()),
                       this->pending_.data_payload.size());
-    this->pending_ = CommandRequest{"", {"OK", "SUCCESS"}, this->command_timeout_ms_, CommandKind::KIND_PUBLISH_LONG_RESULT};
+    this->pending_ =
+        CommandRequest{"", {"OK", "SUCCESS"}, this->command_timeout_ms_, CommandKind::KIND_PUBLISH_LONG_RESULT};
     this->pending_active_ = true;
     this->pending_response_.clear();
     this->pending_started_ = millis();
@@ -349,12 +362,21 @@ void DXCT511NComponent::finish_pending_(bool success) {
 
   if (kind == CommandKind::KIND_MDISCONNECT && success) {
     this->set_mqtt_connected_(false);
+    this->step_ = SetupStep::STEP_IDLE;
     return;
   }
 
   if (kind == CommandKind::KIND_MIPCLOSE && success) {
     this->set_network_connected_(false);
     this->set_mqtt_connected_(false);
+    this->step_ = SetupStep::STEP_IDLE;
+    return;
+  }
+
+  if (kind == CommandKind::KIND_MUNSUB && !success) {
+    ESP_LOGW(TAG, "Unsubscribe failed for command: %s", command.c_str());
+    this->set_mqtt_connected_(false);
+    this->step_ = SetupStep::STEP_MCONNECT;
     return;
   }
 
@@ -363,6 +385,49 @@ void DXCT511NComponent::finish_pending_(bool success) {
     this->set_mqtt_connected_(false);
     this->step_ = SetupStep::STEP_MCONNECT;
   }
+}
+
+DXCT511NComponent::CommandRequest DXCT511NComponent::make_subscribe_request_(const Subscription &subscription,
+                                                                              CommandKind kind) const {
+  return CommandRequest{"AT+MSUB=\"" + subscription.topic + "\"," + to_string(subscription.qos),
+                        {"OK", "SUCCESS", "ALREADY"}, this->command_timeout_ms_, kind};
+}
+
+void DXCT511NComponent::upsert_subscription_(const std::string &topic, uint8_t qos) {
+  if (topic.empty())
+    return;
+
+  const auto bounded_qos = qos > 2 ? 2 : qos;
+  const auto index = this->find_subscription_index_(topic);
+  if (index >= 0) {
+    this->subscribe_topics_[static_cast<size_t>(index)].qos = bounded_qos;
+    return;
+  }
+
+  this->subscribe_topics_.push_back(Subscription{topic, bounded_qos});
+}
+
+void DXCT511NComponent::remove_subscription_(const std::string &topic) {
+  if (topic.empty())
+    return;
+
+  const auto index = this->find_subscription_index_(topic);
+  if (index < 0)
+    return;
+
+  this->subscribe_topics_.erase(this->subscribe_topics_.begin() + index);
+  if (this->subscribe_index_ > static_cast<size_t>(index) && this->subscribe_index_ != 0) {
+    this->subscribe_index_--;
+  }
+}
+
+int DXCT511NComponent::find_subscription_index_(const std::string &topic) const {
+  for (size_t i = 0; i < this->subscribe_topics_.size(); i++) {
+    if (this->subscribe_topics_[i].topic == topic) {
+      return static_cast<int>(i);
+    }
+  }
+  return -1;
 }
 
 void DXCT511NComponent::schedule_reconnect_() {
@@ -551,6 +616,11 @@ std::string DXCT511NComponent::escape_at_string_(const std::string &input) const
 
 void DXCT511NComponent::publish_message(const std::string &topic, const std::string &payload, uint8_t qos,
                                         bool retain) {
+  if (topic.empty()) {
+    ESP_LOGW(TAG, "Ignoring publish with empty topic");
+    return;
+  }
+
   const auto escaped = this->escape_at_string_(payload);
   this->queue_.push_back(CommandRequest{"AT+MPUB=\"" + topic + "\"," + to_string(qos) + "," +
                                             to_string(retain ? 1 : 0) + ",\"" + escaped + "\"",
@@ -559,6 +629,11 @@ void DXCT511NComponent::publish_message(const std::string &topic, const std::str
 
 void DXCT511NComponent::publish_long_message(const std::string &topic, const std::string &payload, uint8_t qos,
                                              bool retain) {
+  if (topic.empty()) {
+    ESP_LOGW(TAG, "Ignoring long publish with empty topic");
+    return;
+  }
+
   auto request = CommandRequest{"AT+MPUBEX=\"" + topic + "\"," + to_string(qos) + "," +
                                     to_string(retain ? 1 : 0) + "," + to_string(payload.size()),
                                 {">"}, 10000, CommandKind::KIND_PUBLISH_LONG_PROMPT};
@@ -566,7 +641,32 @@ void DXCT511NComponent::publish_long_message(const std::string &topic, const std
   this->queue_.push_back(request);
 }
 
+void DXCT511NComponent::request_subscribe(const std::string &topic, uint8_t qos) {
+  if (topic.empty()) {
+    ESP_LOGW(TAG, "Ignoring subscribe with empty topic");
+    return;
+  }
+
+  this->upsert_subscription_(topic, qos);
+  if (!this->mqtt_connected_ || this->step_ != SetupStep::STEP_READY) {
+    return;
+  }
+
+  const auto index = this->find_subscription_index_(topic);
+  if (index < 0) {
+    return;
+  }
+
+  this->queue_.push_back(this->make_subscribe_request_(this->subscribe_topics_[static_cast<size_t>(index)],
+                                                       CommandKind::KIND_MSUB));
+}
+
 void DXCT511NComponent::send_raw_at(const std::string &command, uint32_t timeout_ms) {
+  if (command.empty()) {
+    ESP_LOGW(TAG, "Ignoring empty AT command");
+    return;
+  }
+
   auto actual_timeout = timeout_ms == 0 ? this->command_timeout_ms_ : timeout_ms;
   this->queue_.push_back(CommandRequest{command, {"OK"}, actual_timeout, CommandKind::KIND_RAW_AT});
 }
@@ -579,6 +679,12 @@ void DXCT511NComponent::request_gps_power(bool state) {
 }
 
 void DXCT511NComponent::request_unsubscribe(const std::string &topic_filter) {
+  if (topic_filter.empty()) {
+    ESP_LOGW(TAG, "Ignoring unsubscribe with empty topic");
+    return;
+  }
+
+  this->remove_subscription_(topic_filter);
   this->queue_.push_back(CommandRequest{"AT+MUNSUB=\"" + topic_filter + "\"",
                                         {"OK", "SUCCESS"}, this->command_timeout_ms_, CommandKind::KIND_MUNSUB});
 }

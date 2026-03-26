@@ -197,6 +197,10 @@ The current external component intentionally focuses on MQTT-centered behavior f
 - `AT+MCONNECT`
 - `AT+MSUB`
 - `AT+MPUB`
+- `AT+MPUBEX`
+- `AT+MUNSUB`
+- `AT+MDISCONNECT`
+- `AT+MIPCLOSE`
 - `AT+CSQ`
 - `AT+MGPSC`
 
@@ -206,7 +210,7 @@ The current external component intentionally focuses on MQTT-centered behavior f
 - confirm final `AT+MCONFIG` syntax beyond client ID only
 - confirm exact success/failure responses for `AT+MCONNECT`, `AT+MSUB`, `AT+MUNSUB`, `AT+MDISCONNECT`, `AT+MIPCLOSE`
 - confirm how downlink MQTT messages are formatted on UART
-- add `AT+MPUBEX` long-payload handling once the exact UART interaction is verified
+- validate `AT+MPUBEX` prompt and success response details against the full manual
 - add `AT+MQTTSTATU` based state probing if needed
 
 ## Validation Checklist For User Review
